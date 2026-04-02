@@ -129,12 +129,12 @@ function extractFromText(text, subject, emailDate) {
 
   if (cleanText.length < 20) return [];
 
-  const prompt = `You are a data extraction assistant. Extract ALL customer/contact records from the following email content.
+  const prompt = `You are a data extraction assistant. Extract customer/contact records from the following email content.
 
-For each person/customer found, extract:
-- customer_name: The person's full name (look for fields like "Pickup Contact", "Customer", "Name", "Client", etc.)
-- phone_number: Their phone number (look for fields like "Pickup Number", "Phone", "Mobile", "Contact", "Tel", etc.)
-- date_of_business: The date they did business (look for fields like "Date", "Generated Date", "Review Date", "Service Date", etc.). If no specific business date is found, use the email date.
+This is a SWOOP review notification email. For each record, extract EXACTLY these fields:
+- customer_name: The value of "Pickup Contact" (this is the customer's name)
+- phone_number: The value of "Pickup Number" (this is the customer's phone number)
+- date_of_business: Use the email date: ${emailDate.toISOString().split('T')[0]}
 
 Email Subject: ${subject}
 Email Date: ${emailDate.toISOString().split('T')[0]}
@@ -177,10 +177,10 @@ function extractFromAttachment(attachment, subject, emailDate) {
 
   const prompt = `You are a data extraction assistant. Extract ALL customer/contact records from the following spreadsheet data.
 
-For each person/customer found, extract:
-- customer_name: The person's full name (look for columns like "Name", "Customer", "Contact", "Pickup Contact", etc.)
-- phone_number: Their phone number (look for columns like "Phone", "Number", "Mobile", "Contact Number", "Pickup Number", etc.)
-- date_of_business: The date they did business (look for columns like "Date", "Generated Date", "Review Date", "Service Date", etc.). If no date column exists, use: ${emailDate.toISOString().split('T')[0]}
+For each row in the spreadsheet, extract EXACTLY these fields:
+- customer_name: The value from the "Contact" column (this is the customer's name)
+- phone_number: The value from the phone number column (look for columns containing phone numbers)
+- date_of_business: The value from the "Survey Sent" column (this is the date of business). If not found, use: ${emailDate.toISOString().split('T')[0]}
 
 Source file: ${attachment.getName()}
 
