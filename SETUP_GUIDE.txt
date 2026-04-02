@@ -1,0 +1,122 @@
+============================================================
+  EMAIL DATA EXTRACTION TO GOOGLE SHEET
+  Setup & Deployment Guide
+============================================================
+
+OVERVIEW
+--------
+This automation scans your Gmail inbox for new emails, extracts
+customer data (Name, Phone, Date of Business) from both inline
+email content and Excel attachments using OpenAI, and appends
+everything to a master Google Sheet with automatic deduplication.
+
+
+STEP-BY-STEP SETUP
+-------------------
+
+STEP 1: Open Google Apps Script
+  1. Log into tip.top.towing.reviews@gmail.com
+  2. Go to https://script.google.com
+  3. Click "New project"
+  4. Name it "Email Data Extraction" (click "Untitled project" at top)
+
+STEP 2: Paste the Code
+  1. Delete any existing code in the editor
+  2. Copy the ENTIRE contents of Code.gs and paste it in
+  3. Click the save icon (floppy disk) or press Ctrl+S
+
+STEP 3: Enable the Drive API
+  1. In the Apps Script editor, click the "+" next to "Services"
+     in the left sidebar
+  2. Scroll down and select "Drive API" (Google Drive API v2)
+  3. Click "Add"
+  This is needed to convert Excel attachments to readable format.
+
+STEP 4: Test the OpenAI Connection
+  1. In the function dropdown at the top (next to the Run button),
+     select "testOpenAI"
+  2. Click Run
+  3. It will ask for permissions - click "Review permissions",
+     choose your account, click "Advanced" > "Go to Email Data
+     Extraction (unsafe)" > "Allow"
+  4. Check the Execution Log at the bottom - it should say
+     "SUCCESS - OpenAI connection is working!"
+
+STEP 5: Run a Test
+  1. Send a test email to tip.top.towing.reviews@gmail.com with
+     some sample customer data (or forward one of your real emails)
+  2. In the function dropdown, select "runManually"
+  3. Click Run
+  4. Check Google Drive - a new spreadsheet called
+     "Customer Data - Master Sheet" should appear with your data
+
+STEP 6: Set Up Automatic Processing
+  1. In the function dropdown, select "setupTrigger"
+  2. Click Run
+  3. This creates an automatic hourly trigger
+
+  Alternative: For daily processing instead of hourly, run
+  "setupDailyTrigger" - it will process emails every day at 8 AM.
+
+
+HOW IT WORKS
+------------
+1. Every hour (or daily), the script checks your inbox
+2. For each unprocessed email:
+   - Reads the email body text
+   - Checks for Excel/CSV attachments
+   - Sends the content to OpenAI to extract: Name, Phone, Date
+   - Appends results to the Google Sheet
+   - Marks the email with a "Processed" label (so it won't be
+     processed again)
+3. Duplicates are automatically skipped (matched on name + phone)
+
+
+YOUR GOOGLE SHEET
+-----------------
+The master spreadsheet has 3 tabs:
+
+  Dashboard    - Quick overview: last run time, total records,
+                 errors count
+
+  Customer Data - All extracted records with columns:
+                  Customer Name | Phone Number | Date of Business |
+                  Source Email Subject | Date Processed
+
+  Processing Log - Detailed log of every run with timestamps
+
+
+MAINTENANCE
+-----------
+- The system runs automatically once set up. No action needed.
+- To run it manually anytime: open the script, select "runManually",
+  click Run.
+- To stop it: Go to Apps Script > Triggers (clock icon on left) >
+  delete the trigger.
+- To change frequency: Delete the existing trigger and run either
+  setupTrigger (hourly) or setupDailyTrigger (daily at 8 AM).
+- Processed emails get a "Processed" Gmail label. To reprocess an
+  email, just remove that label from it.
+
+
+COST
+----
+- Google Apps Script: Free
+- Gmail: Free
+- OpenAI API: Pay-per-use, estimated under $1/month for your volume
+  (50-100 emails/week). You can monitor usage at
+  https://platform.openai.com/usage
+
+
+TROUBLESHOOTING
+---------------
+- "OpenAI API error 401": Check that your API key is correct in the
+  CONFIG section at the top of the code.
+- "OpenAI API error 429": You've hit a rate limit. Wait a few
+  minutes and try again, or add billing to your OpenAI account.
+- No data appearing: Check the Processing Log tab for error messages.
+- Duplicates appearing: The dedup checks name + phone. If the same
+  person has different phone formats, they may appear twice. You can
+  manually clean these up.
+- Excel attachment not reading: Make sure the Drive API service is
+  enabled (Step 3 above).
