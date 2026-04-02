@@ -98,17 +98,22 @@ function processMessage(message) {
 
   // 2. Process attachments (Excel files)
   const attachments = message.getAttachments();
+  Logger.log('Found ' + attachments.length + ' attachment(s)');
   for (const attachment of attachments) {
     const name = attachment.getName().toLowerCase();
+    Logger.log('Attachment: ' + attachment.getName() + ' | Type: ' + attachment.getContentType() + ' | Size: ' + attachment.getSize());
     if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
       try {
         const attachmentRecords = extractFromAttachment(attachment, subject, emailDate);
+        Logger.log('Extracted ' + (attachmentRecords ? attachmentRecords.length : 0) + ' records from attachment');
         if (attachmentRecords && attachmentRecords.length > 0) {
           allRecords = allRecords.concat(attachmentRecords);
         }
       } catch (e) {
         Logger.log('Error processing attachment ' + name + ': ' + e.message);
       }
+    } else {
+      Logger.log('Skipping attachment (not xlsx/xls/csv): ' + name);
     }
   }
 
@@ -202,40 +207,82 @@ Return a JSON array of objects. Each object must have exactly these keys: custom
  * Convert an Excel attachment to text by uploading to Google Drive and reading as a Sheet.
  */
 function convertExcelToText(attachment) {
-  let file = null;
-  let spreadsheet = null;
+  let tempFileId = null;
 
   try {
-    // Upload the Excel file to Drive and convert to Google Sheets
+    // Method 1: Use DriveApp to create the file, then convert
     const blob = attachment.copyBlob();
-    file = Drive.Files.insert(
-      { title: 'temp_import_' + Date.now(), mimeType: MimeType.GOOGLE_SHEETS },
-      blob,
-      { convert: true }
+    blob.setContentType('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+    // Upload as Excel file first
+    const tempFile = DriveApp.createFile(blob);
+    tempFileId = tempFile.getId();
+    Logger.log('Uploaded temp Excel file to Drive: ' + tempFileId);
+
+    // Convert to Google Sheets using Drive API v2
+    const convertedFile = Drive.Files.copy(
+      { title: 'temp_converted_' + Date.now(), mimeType: MimeType.GOOGLE_SHEETS },
+      tempFileId
     );
 
+    // Delete the original Excel temp file
+    DriveApp.getFileById(tempFileId).setTrashed(true);
+    tempFileId = convertedFile.id;
+
+    Logger.log('Converted to Google Sheet: ' + convertedFile.id);
+
     // Open as spreadsheet and read all data
-    spreadsheet = SpreadsheetApp.openById(file.id);
+    const spreadsheet = SpreadsheetApp.openById(convertedFile.id);
     const sheets = spreadsheet.getSheets();
     let allText = '';
 
     for (const sheet of sheets) {
       const data = sheet.getDataRange().getValues();
+      Logger.log('Sheet "' + sheet.getName() + '" has ' + data.length + ' rows');
       for (const row of data) {
         allText += row.join('\t') + '\n';
       }
       allText += '\n';
     }
 
+    Logger.log('Converted Excel to text: ' + allText.length + ' chars');
     return allText;
   } catch (e) {
-    Logger.log('Excel conversion error: ' + e.message);
-    // Fallback: try reading as raw text
-    return attachment.getDataAsString();
+    Logger.log('Excel conversion error (method 1): ' + e.message);
+
+    // Method 2: Try direct insert with convert flag
+    try {
+      const blob2 = attachment.copyBlob();
+      const file = Drive.Files.insert(
+        { title: 'temp_direct_' + Date.now(), mimeType: MimeType.GOOGLE_SHEETS },
+        blob2,
+        { convert: true }
+      );
+
+      if (tempFileId) {
+        try { DriveApp.getFileById(tempFileId).setTrashed(true); } catch(x) {}
+      }
+      tempFileId = file.id;
+
+      const spreadsheet = SpreadsheetApp.openById(file.id);
+      const sheets = spreadsheet.getSheets();
+      let allText = '';
+      for (const sheet of sheets) {
+        const data = sheet.getDataRange().getValues();
+        for (const row of data) {
+          allText += row.join('\t') + '\n';
+        }
+      }
+      Logger.log('Method 2 succeeded: ' + allText.length + ' chars');
+      return allText;
+    } catch (e2) {
+      Logger.log('Excel conversion error (method 2): ' + e2.message);
+      return '';
+    }
   } finally {
     // Clean up temp file
-    if (file && file.id) {
-      try { DriveApp.getFileById(file.id).setTrashed(true); } catch(e) {}
+    if (tempFileId) {
+      try { DriveApp.getFileById(tempFileId).setTrashed(true); } catch(e) {}
     }
   }
 }
